@@ -1,10 +1,11 @@
-import os
-from typing import Optional
-from playwright.sync_api import sync_playwright, Page
 from dotenv import load_dotenv
-import time
+from playwright.async_api import async_playwright
+import asyncio
 
-URL = "https://auth.gov-ncloud.com/login"
+from lib import init_log, Authentication, PageNavigator
+from pprint import pprint
+
+logger = init_log()
 
 
 def load_env_file():
@@ -14,45 +15,66 @@ def load_env_file():
     load_dotenv('.env', override=True)
 
 
-def login(page: Page):
-    """
-    Perform login to the Naver Cloud Platform using Playwright.
-    """
-    page.goto(URL)
+async def run():
+    # Configuration - Set headless mode here
+    HEADLESS_MODE = True  # Change to False to use browser input for SMS
 
-    # Wait for the login form to load
-    page.wait_for_selector("#loginAlias")
-
-    # Fill in the login form
-    page.fill('#loginAlias',
-              os.getenv('LOGIN_ALIAS'))  # Replace with your username
-    page.fill('#username', os.getenv('USERNAME'))  # Replace with your username
-    page.fill('#password', os.getenv('PASSWORD'))  # Replace with your username
-
-    # Click the login button
-    page.click('button[type="submit"]')
-
-    # Wait for the page to load after login
-    page.wait_for_load_state()
-
-    print("Login successful!")
-
-
-def main():
-    load_dotenv()
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=False,
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=HEADLESS_MODE,
             slow_mo=1000,  # wait 1 second between actions
-            channel="msedge"  # Use Microsoft Edge browser
         )
 
-        context = browser.new_context()
-        page = context.new_page()
+        context = await browser.new_context()
+        page = await context.new_page()
 
-        login(page)
+        # Initialize components with headless mode info
+        authenticator = Authentication(logger=logger, headless=HEADLESS_MODE)
+        page_navigator = PageNavigator(logger=logger)
+
+        # Perform authentication
+        try:
+            await authenticator.auth(page)
+        except Exception as e:
+            msg = f"An error occurred during authentication: {e}"
+            logger.error(msg)
+            await browser.close()
+            return
+
+        # Navigate to page for VPC Tab
+        try:
+            await page_navigator.navigate_to_vpc_page(page)
+        except Exception as e:
+            msg = f"An error occurred navigating to VPC page: {e}"
+            logger.error(msg)
+            await browser.close()
+            return
+
+        # Navigate to SSL VPN page
+        try:
+            await page_navigator.navigate_to_sslvpn_page(page)
+        except Exception as e:
+            msg = f"An error occurred navigating to SSL VPN page: {e}"
+            logger.error(msg)
+            await browser.close()
+            return
+
+        # Extract all VPC data
+        try:
+            vpcs = await page_navigator.extract_all_vpcs(page)
+            logger.info("VPC extraction completed!")
+            print("\n=== All VPCs Found ===")
+            pprint(vpcs)
+        except Exception as e:
+            msg = f"An error occurred extracting VPC data: {e}"
+            logger.error(msg)
+
+        # Wait for some time to inspect results
+        await asyncio.sleep(10000)
+
+        await browser.close()
 
 
 if __name__ == '__main__':
-    main()
+    load_env_file()
+    asyncio.run(run())
