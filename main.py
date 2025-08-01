@@ -2,7 +2,9 @@ from dotenv import load_dotenv
 from playwright.async_api import async_playwright
 import asyncio
 
-from lib import init_log, Authentication, PageNavigator
+from lib import init_log
+from lib import Authentication
+from lib import PageNavigator
 from pprint import pprint
 
 logger = init_log()
@@ -17,7 +19,7 @@ def load_env_file():
 
 async def run():
     # Configuration - Set headless mode here
-    HEADLESS_MODE = True  # Change to False to use browser input for SMS
+    HEADLESS_MODE = False  # Change to False to use browser input for SMS
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -29,8 +31,8 @@ async def run():
         page = await context.new_page()
 
         # Initialize components with headless mode info
-        authenticator = Authentication(logger=logger, headless=HEADLESS_MODE)
-        page_navigator = PageNavigator(logger=logger)
+        authenticator = Authentication(headless=HEADLESS_MODE)
+        page_navigator = PageNavigator()
 
         # Perform authentication
         try:

@@ -3,7 +3,7 @@ import logging
 from typing import List, Dict, Any
 
 from playwright.async_api import Page
-from lib import init_log
+from lib import BaseLogger
 
 
 class PageNavigationError(Exception):
@@ -13,14 +13,14 @@ class PageNavigationError(Exception):
         super().__init__(message)
 
 
-class PageNavigator:
+class PageNavigator(BaseLogger):
     """
     Page navigation class for handling various page operations in Naver Cloud Platform
     """
 
-    def __init__(self, logger: logging.Logger = None):
-        # Use provided logger or create new one if none provided
-        self.logger = logger if logger is not None else init_log()
+    def __init__(self):
+        # Initialize base logger
+        super().__init__()
 
     async def navigate_to_vpc_page(self, page: Page) -> None:
         """
@@ -34,24 +34,24 @@ class PageNavigator:
         """
         try:
             # Go to the Console page
-            self.logger.info('Navigating to the Console page...')
+            self._log_info('Navigating to the Console page...')
             await page.goto(os.getenv('CONSOLE_URL'))
 
             # Handle popup removal
             await self._remove_popup_if_exists(page)
 
             # Navigate to VPC page
-            self.logger.info('Navigating to the VPC page...')
+            self._log_info('Navigating to the VPC page...')
             await page.click(
                 selector='#aside > div.lnb.gov-lnb > div.extend > div.platform > a > div > button.btn.btn-sm.flat.btn-platform.vpc'
             )
 
             # Wait for the page to load completely
             await page.wait_for_load_state()
-            self.logger.info('VPC page loaded successfully!')
+            self._log_info('VPC page loaded successfully!')
 
         except Exception as e:
-            self.logger.error(f"Failed to navigate to VPC page: {str(e)}")
+            self._log_error(f"Failed to navigate to VPC page: {str(e)}")
             raise PageNavigationError(f"VPC page navigation failed: {str(e)}")
 
     async def navigate_to_sslvpn_page(self, page: Page) -> None:
@@ -65,13 +65,13 @@ class PageNavigator:
             PageNavigationError: If navigation fails
         """
         try:
-            self.logger.info('Going to the SSL VPN page...')
+            self._log_info('Going to the SSL VPN page...')
             await page.goto(os.getenv('SSL_VPN_CONSOLE_URL'))
             await page.wait_for_load_state()
-            self.logger.info('SSL VPN page loaded successfully!')
+            self._log_info('SSL VPN page loaded successfully!')
 
         except Exception as e:
-            self.logger.error(f"Failed to navigate to SSL VPN page: {str(e)}")
+            self._log_error(f"Failed to navigate to SSL VPN page: {str(e)}")
             raise PageNavigationError(
                 f"SSL VPN page navigation failed: {str(e)}")
 
@@ -89,7 +89,7 @@ class PageNavigator:
             PageNavigationError: If VPC extraction fails
         """
         try:
-            self.logger.info('Extracting all VPC data from the page...')
+            self._log_info('Extracting all VPC data from the page...')
 
             # Wait for the VPC table to load
             await page.wait_for_selector(
@@ -126,18 +126,18 @@ class PageNavigator:
                                 f'column_{j + 1}'] = col_text.strip() if col_text else ''
 
                         vpcs.append(vpc_data)
-                        self.logger.info(f'Found VPC: {vpc_name}')
+                        self._log_info(f'Found VPC: {vpc_name}')
 
                 except Exception as e:
-                    self.logger.warning(
+                    self._log_warning(
                         f'Error extracting VPC data from row {i + 1}: {e}')
                     continue
 
-            self.logger.info(f'Total VPCs found: {len(vpcs)}')
+            self._log_info(f'Total VPCs found: {len(vpcs)}')
             return vpcs
 
         except Exception as e:
-            self.logger.error(f"Failed to extract VPC data: {str(e)}")
+            self._log_error(f"Failed to extract VPC data: {str(e)}")
             raise PageNavigationError(f"VPC extraction failed: {str(e)}")
 
     async def _remove_popup_if_exists(self, page: Page) -> None:
@@ -147,24 +147,24 @@ class PageNavigator:
         Args:
             page (Page): Playwright page instance
         """
-        self.logger.info('Removing the popup if it exists...')
+        self._log_info('Removing the popup if it exists...')
 
         try:
             await page.wait_for_selector(
                 selector='#mCSB_6_container > div > div > label > input[type=checkbox]',
                 timeout=5000
             )
-            self.logger.info(
+            self._log_info(
                 'Popup checkbox found, clicking it to remove the popup...')
             await page.click(
                 selector='#mCSB_6_container > div > div > label > input[type=checkbox]'
             )
             await page.click(selector='#mCSB_6_container > div > div > a')
-            self.logger.info('Popup removed successfully!')
+            self._log_info('Popup removed successfully!')
 
         except TimeoutError:
-            self.logger.info('Popup checkbox not found, no popup to remove.')
+            self._log_info('Popup checkbox not found, no popup to remove.')
         except Exception as e:
-            self.logger.error(
+            self._log_error(
                 f'An error occurred while trying to remove the popup: {e}')
             raise
